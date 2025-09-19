@@ -1,12 +1,17 @@
 // src/routes/authRoutes.js
 import { Router } from "express";
-import { register, login, forgot, reset } from "../controllers/authController.js";
+import { register, login, forgot, reset, current } from "../controllers/authController.js";
 import { sendResetEmail } from "../services/mail.service.js";
+import { verifyToken } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
 router.post("/register", register);
 router.post("/login", login);
+
+// DTO sin datos sensibles (requiere JWT)
+router.get("/current", verifyToken, current);
+
 router.post("/forgot", forgot);
 router.post("/reset", reset);
 

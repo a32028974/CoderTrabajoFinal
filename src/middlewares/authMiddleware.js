@@ -1,19 +1,19 @@
+// src/middlewares/authMiddleware.js
 import jwt from "jsonwebtoken";
 
-// Middleware para verificar token
-export const verifyToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // "Bearer TOKEN"
+const JWT_SECRET = process.env.JWT_SECRET || "";
 
-  if (!token) {
-    return res.status(401).json({ error: "Token requerido" });
-  }
+export function verifyToken(req, res, next) {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "No token provided" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "claveSecreta");
-    req.user = decoded; // El payload del token queda en req.user
+    const payload = jwt.verify(token, JWT_SECRET);
+    // payload: { id, role, email } (lo seteamos en login)
+    req.user = { id: payload.id, role: payload.role, email: payload.email };
     next();
-  } catch (error) {
-    return res.status(403).json({ error: "Token inválido o expirado" });
+  } catch (e) {
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
-};
+}

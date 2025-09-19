@@ -14,12 +14,12 @@ export const transporter = nodemailer.createTransport({
   host: EMAIL_HOST,
   port: Number(EMAIL_PORT) || 587,
   secure: String(EMAIL_SECURE).toLowerCase() === "true",
-  auth: {
-    user: EMAIL_USER,
-    pass: EMAIL_PASS,
-  },
-  logger: true,   // 🔎 loggea en consola
-  debug: true,    // 🔎 más detalle SMTP
+  auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  pool: true,                // ✅ opcional: conexiones en pool
+  maxConnections: 3,         // ✅ opcional
+  maxMessages: 100,          // ✅ opcional
+  logger: true,
+  debug: true,
 });
 
 export async function verifyTransporter() {
@@ -37,7 +37,7 @@ export async function sendResetEmail(to, link) {
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif; line-height:1.4;">
       <h2>Recuperación de contraseña</h2>
-      <p>Recibimos una solicitud para restablecer tu contraseña. Este enlace es válido por <strong>1 hora</strong>.</p>
+      <p>Este enlace es válido por <strong>1 hora</strong>.</p>
       <p style="margin:24px 0;">
         <a href="${link}"
            style="background:#0d6efd;color:#fff;text-decoration:none;padding:12px 18px;border-radius:6px;display:inline-block">
@@ -46,7 +46,7 @@ export async function sendResetEmail(to, link) {
       </p>
       <p>Si no solicitaste esto, podés ignorar este correo.</p>
       <hr/>
-      <p style="color:#666;font-size:12px;">Si el botón no funciona, copia y pega este enlace:<br/>
+      <p style="color:#666;font-size:12px;">Si el botón no funciona, copiá este enlace:<br/>
         <a href="${link}">${link}</a>
       </p>
     </div>
@@ -54,15 +54,8 @@ export async function sendResetEmail(to, link) {
 
   const text = `Recuperación de contraseña.
 Enlace (válido 1 hora): ${link}
-Si no solicitaste esto, ignora este correo.`;
+Si no solicitaste esto, ignorá este correo.`;
 
-  const info = await transporter.sendMail({
-    from,
-    to,
-    subject: "Recuperación de contraseña",
-    text,
-    html,
-  });
-
+  const info = await transporter.sendMail({ from, to, subject: "Recuperación de contraseña", text, html });
   console.log("✉️  Mail enviado. messageId:", info.messageId);
 }

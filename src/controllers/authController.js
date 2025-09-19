@@ -7,6 +7,7 @@ import crypto from "crypto";
 // Model y servicio para recuperación de contraseña
 import ResetToken from "../models/ResetToken.js";              // requiere src/models/ResetToken.js
 import { sendResetEmail } from "../services/mail.service.js";  // requiere src/services/mail.service.js
+import UserDTO from "../dto/UserDTO.js";                       // DTO para /current
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "1h";
@@ -78,7 +79,7 @@ export const login = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id, role: user.role, email: user.email }, // incluimos email por conveniencia
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -86,6 +87,21 @@ export const login = async (req, res) => {
     res.json({ message: "Login exitoso", token });
   } catch (error) {
     res.status(500).json({ message: "Error en el login", error: String(error) });
+  }
+};
+
+/**
+ * GET /api/auth/current
+ * Requiere middleware de verificación JWT que setee req.user = {id, role, email}
+ * Devuelve DTO sin información sensible
+ */
+export const current = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+    return res.json({ status: "ok", payload: new UserDTO(user) });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
 };
 
@@ -101,8 +117,12 @@ export const forgot = async (req, res) => {
     const generic = { message: "Si el correo existe, se envió un mail con instrucciones" };
     if (!email) return res.json(generic);
 
-    const user = await User.findOne({ email });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.json(generic);
+
+    // limpiar tokens anteriores del usuario (evita múltiples válidos)
+    await ResetToken.deleteMany({ userId: user._id });
 
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = sha256(rawToken);
@@ -110,18 +130,17 @@ export const forgot = async (req, res) => {
 
     await ResetToken.create({ userId: user._id, tokenHash, expiresAt });
 
-    const link = `${CLIENT_URL}/reset-password?uid=${user._id}&token=${rawToken}`;
+    // Link a tu front: /reset-password?uid=...&token=...
+    const base = CLIENT_URL.replace(/\/$/, "");
+    const link = `${base}/reset-password?uid=${user._id}&token=${rawToken}`;
 
-    // ⚠️ durante la prueba NO silenciamos:
-    await sendResetEmail(email, link);
-
+    await sendResetEmail(normalizedEmail, link);
     return res.json(generic);
   } catch (error) {
     console.error("❗ Error enviando mail de reset:", error);
     return res.status(500).json({ message: "Error al procesar la solicitud", error: error.message });
   }
 };
-
 
 /**
  * POST /api/auth/reset
